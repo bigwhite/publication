@@ -1,0 +1,14 @@
+panic: runtime error: index out of range [5] with length 5
+
+goroutine 1 [running]:
+github.com/bigwhite/fuzz-test-demo.ParseComplex.func5(...)
+	/Users/tonybai/Startup/培训-演讲-课程-合作/github/books/effective-go/chapters/chapter8/sources/fuzz-test-demo/parse_complex.go:5
+github.com/bigwhite/fuzz-test-demo.ParseComplex(0x28a21000, 0x5, 0x5, 0x3bd475a562627)
+	/Users/tonybai/Startup/培训-演讲-课程-合作/github/books/effective-go/chapters/chapter8/sources/fuzz-test-demo/parse_complex.go:5 +0x1be
+github.com/bigwhite/fuzz-test-demo.Fuzz(0x28a21000, 0x5, 0x5, 0x3)
+	/Users/tonybai/Startup/培训-演讲-课程-合作/github/books/effective-go/chapters/chapter8/sources/fuzz-test-demo/parse_complex_fuzz.go:6 +0x57
+go-fuzz-dep.Main(0xc000104f70, 0x1, 0x1)
+	go-fuzz-dep/main.go:36 +0x1ad
+main.main()
+	github.com/bigwhite/fuzz-test-demo/go.fuzz.main/main.go:15 +0x52
+exit status 2

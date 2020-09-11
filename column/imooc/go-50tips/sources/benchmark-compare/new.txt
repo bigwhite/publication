@@ -1,0 +1,9 @@
+goos: darwin
+goarch: amd64
+BenchmarkStrcat-8   	22876281	        51.4 ns/op
+BenchmarkStrcat-8   	23847198	        55.3 ns/op
+BenchmarkStrcat-8   	22036873	        52.6 ns/op
+BenchmarkStrcat-8   	23761320	        50.2 ns/op
+BenchmarkStrcat-8   	23820279	        51.5 ns/op
+PASS
+ok  	command-line-arguments	6.347s

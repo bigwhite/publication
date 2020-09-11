@@ -1,0 +1,6 @@
+panic: runtime error: index out of range [5] with length 5
+github.com/bigwhite/fuzz-test-demo.ParseComplex.func5
+github.com/bigwhite/fuzz-test-demo.ParseComplex
+github.com/bigwhite/fuzz-test-demo.Fuzz
+go-fuzz-dep.Main
+main.main
