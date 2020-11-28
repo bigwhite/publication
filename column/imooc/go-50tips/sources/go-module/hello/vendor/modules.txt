@@ -1,0 +1,5 @@
+# bitbucket.org/bigwhite/c v1.3.0
+## explicit
+bitbucket.org/bigwhite/c
+# bitbucket.org/bigwhite/d v1.2.0
+bitbucket.org/bigwhite/d

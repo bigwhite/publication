@@ -1,0 +1,6 @@
+FROM golang:1.9.2
+
+WORKDIR /go/src
+COPY ./httpserver.go .
+
+RUN go build -o httpd ./httpserver.go
