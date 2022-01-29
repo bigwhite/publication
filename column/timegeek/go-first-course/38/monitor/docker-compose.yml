@@ -1,0 +1,35 @@
+version: "3.2"
+services:
+  prometheus:
+    container_name: prometheus
+    image: prom/prometheus:latest
+    network_mode: "host"
+    volumes:
+      - ./conf/tcp-server-prometheus.yml:/etc/prometheus/prometheus.yml
+      - /etc/localtime:/etc/localtime
+    #ports:
+    #  - "9090:9090"
+    restart: on-failure
+
+  grafana:
+    container_name: grafana
+    image: grafana/grafana:latest
+    network_mode: "host"
+    #ports:
+    #  - 3000:3000
+    restart: on-failure
+    volumes:
+      - /etc/localtime:/etc/localtime
+      - ./data/grafana:/var/lib/grafana
+
+  # linux node_exporter
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    restart: always
+    container_name: node_exporter
+    command:
+      - '--path.rootfs=/host'
+    network_mode: host
+    pid: host
+    volumes:
+      - '/:/host:ro,rslave'
