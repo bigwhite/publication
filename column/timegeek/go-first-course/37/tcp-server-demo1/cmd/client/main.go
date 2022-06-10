@@ -15,7 +15,7 @@ func main() {
 	var wg sync.WaitGroup
 	var num int = 5
 
-	wg.Add(5)
+	wg.Add(num)
 
 	for i := 0; i < num; i++ {
 		go func(i int) {
@@ -56,7 +56,7 @@ func startClient(i int) {
 			default:
 			}
 
-			conn.SetReadDeadline(time.Now().Add(time.Second * 1))
+			conn.SetReadDeadline(time.Now().Add(time.Second * 5))
 			ackFramePayLoad, err := frameCodec.Decode(conn)
 			if err != nil {
 				if e, ok := err.(net.Error); ok {
