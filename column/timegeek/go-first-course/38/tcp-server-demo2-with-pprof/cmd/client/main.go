@@ -5,6 +5,7 @@ import (
 	"log"
 	"net"
 	"sync"
+	"time"
 
 	"github.com/bigwhite/tcp-server-demo2/frame"
 	"github.com/bigwhite/tcp-server-demo2/packet"
@@ -67,6 +68,8 @@ func startNewConn() {
 		if err != nil {
 			panic(err)
 		}
+
+		time.Sleep(time.Millisecond * 100)
 
 	}
 }
