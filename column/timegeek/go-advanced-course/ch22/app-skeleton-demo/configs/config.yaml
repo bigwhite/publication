@@ -1,0 +1,7 @@
+appName: "MyModularDemoApp"
+logger:
+  level: "info" # Example: "debug", "info", "warn", "error"
+httpServer:
+  addr: ":8080"
+db:
+  dsn: "simulated_user:simulated_pass@tcp(127.0.0.1:3306)/simulated_db"
