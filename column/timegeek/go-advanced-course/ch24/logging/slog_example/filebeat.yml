@@ -1,0 +1,36 @@
+filebeat.inputs:
+- type: filestream
+  id: my-go-app-logs # 唯一的 ID
+  paths:
+    - /var/lib/docker/containers/*/*.log
+  parsers:
+    - container:
+        stream: all
+
+processors:
+  # 第二步解析：对 'message' 字段中包含的应用日志字符串进行解码
+  - decode_json_fields:
+      fields: ["message"]  # 告诉处理器去解析 'message' 字段的内容
+      target: ""           # 将解析出的键值对（如 'msg', 'level', 'time'）放到事件的根级别
+      overwrite_keys: true # 如果有同名字段，用解析出来的值覆盖（比如用应用的'time'覆盖）
+      add_error_key: true
+  - timestamp:
+      field: time # 使用刚刚从内层JSON解析出来的 'time' 字段
+      layouts:
+        - '2006-01-02T15:04:05.999999999Z'
+      # 如果解析失败，不要恐慌，但要记录下来
+      on_failure:
+      - append_to_array:
+          field: error.message
+          value: "Failed to parse application timestamp."
+  - drop_fields:
+      fields: [message] # 'message' 字段已经被解析，可以丢弃了
+      ignore_missing: true
+
+output.elasticsearch:
+  hosts: ["http://localhost:9428/insert/elasticsearch/"]
+  parameters:
+    _msg_field: "msg"
+    _time_field: "@timestamp"
+    _stream_fields: "service_name,level,http_method"
+  allow_older_versions: true

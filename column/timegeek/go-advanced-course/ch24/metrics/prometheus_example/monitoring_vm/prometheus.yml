@@ -1,0 +1,28 @@
+global:
+  scrape_interval: 15s # 每15秒抓取一次指标，默认为1分钟
+  evaluation_interval: 15s # 每15秒评估一次告警规则
+
+# alerting: # 告警管理配置，本示例中暂时不配置Alertmanager
+  # alertmanagers:
+  # - static_configs:
+  #   - targets:
+  #     # - alertmanager:9093
+remote_write:
+  - url: "http://localhost:8428/api/v1/write" 
+    # queue_config: # (可选)
+    #   capacity: 50000
+    #   max_samples_per_send: 5000 
+
+scrape_configs:
+  # 第一个抓取作业：抓取Prometheus自身的指标 (可选，但有助于了解Prometheus健康状况)
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090'] # Prometheus默认监听9090端口
+
+  # 第二个抓取作业：抓取我们的Go应用暴露的指标
+  - job_name: 'my-go-app'
+    # 这里我们假设Go应用运行在宿主机，Prometheus在Docker中。
+    static_configs:
+      - targets: ['localhost:9091'] # 目标是宿主机的9091端口
+        labels:
+          instance: my-go-app-instance-1 # (可选) 为这个target添加标签

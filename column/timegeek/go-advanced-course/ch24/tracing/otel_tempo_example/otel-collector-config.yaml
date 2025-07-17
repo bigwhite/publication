@@ -1,0 +1,23 @@
+receivers:
+  otlp: # 接收OTLP协议的数据
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:14317 # OTLP gRPC receiver on port 14317
+      http:
+        endpoint: 0.0.0.0:14318 # OTLP HTTP receiver on port 14318
+
+processors:
+  batch: # 批量处理数据以提高效率，减少对后端的请求次数
+
+exporters:
+  otlp: # 将数据通过OTLP gRPC发送给Tempo
+    endpoint: "localhost:4317" # Tempo容器的服务名和OTLP gRPC端口
+    tls:
+      insecure: true # 仅用于本地演示，生产环境应使用TLS
+
+service:
+  pipelines:
+    traces: # 定义traces数据的处理管道
+      receivers: [otlp]
+      processors: [batch]
+      exporters: [otlp] # 指向上面定义的otlp exporter (即发送给Tempo)
