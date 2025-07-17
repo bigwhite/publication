@@ -1,0 +1,6 @@
+appName: "MyViperAppFromFile"
+server:
+  port: 8888 # Different from default to see override
+  timeout: "45s"
+database:
+  dsn: "file_user:file_pass@tcp(file_host:3306)/file_db"

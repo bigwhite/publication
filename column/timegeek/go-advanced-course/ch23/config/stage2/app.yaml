@@ -1,0 +1,6 @@
+appName: "MyStage2App"
+server:
+  port: 8080
+  timeout: "30s"
+database:
+  dsn: "user:pass@tcp(localhost:3306)/mydb"

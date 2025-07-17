@@ -1,0 +1,8 @@
+appName: "MyHotLoadApp"
+logLevel: "info"
+featureFlags:
+  newAuth: false
+  experimentalApi: true
+server:
+  port: 8080
+  timeoutSeconds: 30
