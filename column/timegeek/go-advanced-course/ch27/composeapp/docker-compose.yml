@@ -1,0 +1,55 @@
+version: '3.8' # Or a newer compatible version
+
+services:
+  # Go Application Service
+  go-app:
+    build:
+      context: ./app    # 指向Go应用代码和Dockerfile的目录
+      dockerfile: Dockerfile
+    container_name: my_go_app_dev
+    ports:
+      - "8080:8080"   # 将主机的8080端口映射到容器的8080端口
+        #volumes:
+        #- ./app:/app    # 关键：将本地Go源码目录挂载到容器的/app目录
+                      # 这样本地代码修改后，如果配合热重载工具（如air），容器内应用能自动重启
+    environment:      # 通过环境变量传递配置给Go应用
+      - APP_PORT=8080
+      - DB_HOST_APP=postgres-db # 使用postgres-db服务名作为主机名
+      - DB_PORT_APP=5432
+      - DB_USER_APP=devuser
+      - DB_PASSWORD_APP=devpass
+      - DB_NAME_APP=devdb
+    depends_on:       # 确保postgres-db服务先于go-app启动
+      postgres-db:
+        condition: service_healthy # 更可靠的依赖：等待DB健康检查通过
+    networks:
+      - app-net
+
+  # PostgreSQL Database Service
+  postgres-db:
+    image: postgres:15-alpine
+    container_name: my_postgres_dev
+    environment:
+      - POSTGRES_USER=devuser
+      - POSTGRES_PASSWORD=devpass
+      - POSTGRES_DB=devdb
+    volumes:
+      - postgres_dev_data:/var/lib/postgresql/data # 使用命名卷持久化数据
+    ports: # 可选：如果需要从主机直接访问DB调试
+      - "5433:5432" # 主机5433映射到容器5432
+    networks:
+      - app-net
+    healthcheck: # 确保数据库真正可用
+      test: ["CMD-SHELL", "pg_isready -U devuser -d devdb"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+# 定义网络
+networks:
+  app-net:
+    driver: bridge
+
+# 定义命名卷
+volumes:
+  postgres_dev_data:
