@@ -1,0 +1,20 @@
+# configs/config.yaml
+appName: "MyShortLinkServiceFromYAML"
+
+server:
+  port: "8081"          # 覆盖默认的8080
+  logLevel: "debug"       # 覆盖默认的info
+  logFormat: "text"       # 覆盖默认的json，便于本地开发时直接在控制台查看
+  readTimeout: "10s"
+  writeTimeout: "15s"
+  idleTimeout: "180s"
+  shutdownTimeout: "20s"  # 优雅关闭的超时时间
+
+store:
+  type: "memory" # 明确使用内存存储 (虽然这也是默认值)
+  # dsn: "postgres://user:pass@host:port/db?sslmode=disable" # 如果用postgres
+
+tracing:
+  enabled: true # 明确启用追踪
+  otelEndpoint: "localhost:4317" # OTel Collector的gRPC地址
+  sampleRatio: 1.0 # 采样所有追踪 (1.0 = 100%)

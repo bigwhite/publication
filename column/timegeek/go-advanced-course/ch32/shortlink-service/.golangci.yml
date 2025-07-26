@@ -1,0 +1,90 @@
+# .golangci.yml (v2版本配置)
+
+# 配置文件格式版本，v1.54.0+ 推荐使用 v2
+version: "2"
+
+# run: # (可选) v2版本中，run下的配置（如timeout, skip-dirs）被移到更具体的位置或有默认值
+  # timeout: 5m
+  # skip-dirs: # v2中，目录排除通常在 linters.exclusions 或 formatters.exclusions 中定义
+  #   - vendor/
+
+# Linters section: 配置所有linter的行为
+linters:
+  # 启用特定的linter列表
+  enable:
+    - bodyclose
+    - dogsled
+    - dupl
+    - goconst
+    - gocritic
+    - gocyclo
+    - misspell
+    - nakedret
+    - predeclared
+    - revive
+    - staticcheck
+    - unconvert
+    - unparam
+    - whitespace
+    # 注意：govet, errcheck, unused 通常被staticcheck包含或有更好的替代，
+    # 但如果需要它们的特定行为，也可以显式启用。
+    # 这里的列表是一个示例，你可以根据团队规范调整。
+
+  # 禁用特定的linter（即使它们可能被某个预设或`enable-all`启用）
+  disable:
+    - funlen          # 检查函数长度
+    - godot           # 检查注释结尾的标点
+    - lll             # 检查行长度
+    - testpackage     # 检查测试包命名
+
+  # settings: 为特定linter提供详细参数配置
+  settings:
+    errcheck:
+      check-type-assertions: true
+      check-blank: true # 也检查 _ = myFunc() 中的错误
+    gocyclo:
+      min-complexity: 15 # 函数圈复杂度阈值
+    gosec:
+      # 配置安全扫描器的规则
+      excludes:
+        - G101 # 排除潜在的硬编码凭证检查 (需谨慎)
+        - G307 # 排除对 defer rows.Close() 的不安全警告 (如果确认代码正确)
+    misspell:
+      locale: US
+    staticcheck:
+      # 'all' 是一个简写，代表启用所有推荐的 staticcheck 检查器
+      checks: ["all"]
+
+  # exclusions: 定义linter的排除规则
+  exclusions:
+    # `lax` (宽松) 或 `strict` (严格) 模式来处理自动生成的代码。
+    # `lax` 会跳过对已知生成器（如 Mocker, Stringer）生成的代码的检查。
+    generated: lax
+    # 排除特定路径下的所有linter检查
+    paths:
+      - "third_party$" # 以 third_party 结尾的目录
+      - "builtin$"
+      - "examples$"
+      # - "internal/mocks/.*" # 也可以用正则表达式排除mocks目录
+
+# issues: 控制问题的报告方式
+issues:
+  # 每个linter报告的最大问题数量 (0表示无限制)
+  max-issues-per-linter: 0
+  # 相同问题的最大报告数量 (0表示无限制)
+  max-same-issues: 0
+
+# formatters section: 配置所有代码格式化工具的行为
+formatters:
+  # 启用特定的格式化工具
+  enable:
+    - gofmt
+    - goimports
+  
+  # 格式化工具的排除规则 (与linters的类似)
+  exclusions:
+    generated: lax
+    paths:
+      - "third_party$"
+      - "builtin$"
+      - "examples$"
