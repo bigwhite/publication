@@ -1,0 +1,45 @@
+# docker-compose.e2e.yml
+version: '3.8'
+
+services:
+  # 我们的短链接服务
+  shortlink-app:
+    build:
+      context: . # 上下文目录是项目根目录
+      dockerfile: Dockerfile # 使用项目根目录下的 Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      - DB_DSN=postgres://test:password@postgres-db:5432/testdb?sslmode=disable
+      - REDIS_ADDR=redis-cache:6379
+      - USER_SERVICE_BASE_URL=http://user-service:8090
+    depends_on:
+      - postgres-db
+      - redis-cache
+      - user-service
+
+  # 外部用户服务
+  user-service:
+    build:
+      context: ./test/e2e/user-service # 上下文目录是 user-service 的目录
+      dockerfile: Dockerfile # 使用 user-service 目录下的 Dockerfile
+    ports:
+      - "8090"
+
+  # PostgreSQL 依赖
+  postgres-db:
+    image: postgres:18-alpine3.22
+    environment:
+      - POSTGRES_USER=test
+      - POSTGRES_PASSWORD=password
+      - POSTGRES_DB=testdb
+    ports:
+      - "5432"
+    volumes:
+      - ./migrations:/docker-entrypoint-initdb.d
+
+  # Redis 依赖
+  redis-cache:
+    image: redis:7-alpine
+    ports:
+      - "6379"
