@@ -1,0 +1,327 @@
+//go:build integration
+
+package service_test
+
+import (
+	"context"
+	"database/sql"
+	"fmt"
+	"log"
+	"os"
+	"testing"
+	"time"
+	"errors"
+
+	toxiproxy "github.com/Shopify/toxiproxy/v2/client"
+	_ "github.com/lib/pq"
+	"github.com/redis/go-redis/v9"
+	"github.com/testcontainers/testcontainers-go"
+	"github.com/testcontainers/testcontainers-go/wait"
+
+	"github.com/golang-migrate/migrate/v4"
+	_ "github.com/golang-migrate/migrate/v4/database/postgres"
+	_ "github.com/golang-migrate/migrate/v4/source/file"
+
+      "github.com/bigwhite/shortlink/pkg/repository/postgres"
+      redis_repo "github.com/bigwhite/shortlink/pkg/repository/redis"
+      "github.com/bigwhite/shortlink/pkg/service"
+)
+
+var (
+	dbPool      *sql.DB
+	redisClient *redis.Client
+	testService *service.ShortenerService
+	toxiproxyClient *toxiproxy.Client
+	pgProxy    *toxiproxy.Proxy
+	redisProxy *toxiproxy.Proxy
+)
+
+func TestMain(m *testing.M) {
+	ctx := context.Background()
+
+	networkName := "shortlink-chaos-network"
+	network, err := testcontainers.GenericNetwork(ctx, testcontainers.GenericNetworkRequest{
+		NetworkRequest: testcontainers.NetworkRequest{Name: networkName},
+	})
+	if err != nil {
+		log.Fatalf("无法创建共享网络: %s", err)
+	}
+	defer network.Remove(ctx)
+
+	pgContainer := setupPostgres(ctx, networkName)
+	defer pgContainer.Terminate(ctx)
+	redisContainer := setupRedis(ctx, networkName)
+	defer redisContainer.Terminate(ctx)
+	toxiContainer := setupToxiproxy(ctx, networkName)
+	defer toxiContainer.Terminate(ctx)
+
+	// 1. 初始化 Toxiproxy 管理客户端 (连接到 8474 的映射端口)
+	toxiHost, _ := toxiContainer.Host(ctx)
+	toxiAPIPort, _ := toxiContainer.MappedPort(ctx, "8474") // API 端口
+	toxiAddr := fmt.Sprintf("%s:%s", toxiHost, toxiAPIPort.Port())
+	toxiproxyClient = toxiproxy.NewClient(toxiAddr)
+
+	// 2. 通过 API 在 Toxiproxy 内部创建代理
+	// 注意：这里的 upstream (postgres-db:5432) 是 Docker 网络内部的地址
+	var errCreate error
+	pgProxy, errCreate = toxiproxyClient.CreateProxy("postgres", "0.0.0.0:8666", "postgres-db:5432")
+	if errCreate != nil {
+		log.Fatalf("无法创建 PG 代理: %s", errCreate)
+	}
+	redisProxy, errCreate = toxiproxyClient.CreateProxy("redis", "0.0.0.0:8667", "redis-cache:6379")
+	if errCreate != nil {
+		log.Fatalf("无法创建 Redis 代理: %s", errCreate)
+	}
+
+	// 3. 关键修复：获取代理端口在主机上的真实映射端口
+	// 我们不能直接用 8666/8667，因为 Testcontainers 进行了随机端口映射
+	pgProxyMappedPort, err := toxiContainer.MappedPort(ctx, "8666/tcp")
+	if err != nil {
+		log.Fatalf("无法获取 PG 代理映射端口: %s", err)
+	}
+	redisProxyMappedPort, err := toxiContainer.MappedPort(ctx, "8667/tcp")
+	if err != nil {
+		log.Fatalf("无法获取 Redis 代理映射端口: %s", err)
+	}
+
+	// 4. 构建连接字符串 (使用 toxiHost 和 映射后的端口)
+	pgProxyDSN := fmt.Sprintf("postgres://test:password@%s:%s/testdb?sslmode=disable", toxiHost, pgProxyMappedPort.Port())
+	redisProxyAddr := fmt.Sprintf("%s:%s", toxiHost, redisProxyMappedPort.Port())
+
+	// 5. 初始化连接
+	pool, err := sql.Open("postgres", pgProxyDSN)
+	if err != nil { log.Fatalf("无法连接 PG Proxy: %s", err) }
+	dbPool = pool
+	defer dbPool.Close()
+
+	// 验证 PG 连接 (确保 Toxiproxy 转发正常)
+	if err := dbPool.Ping(); err != nil {
+		log.Fatalf("无法 Ping PG Proxy: %s", err)
+	}
+
+	rdb := redis.NewClient(&redis.Options{Addr: redisProxyAddr})
+	// 验证 Redis 连接
+	if err := rdb.Ping(ctx).Err(); err != nil {
+		log.Fatalf("无法连接 Redis Proxy: %s", err)
+	}
+	redisClient = rdb
+	defer redisClient.Close()
+
+	// 6. 运行迁移
+	migrator, err := migrate.New("file://../../migrations", pgProxyDSN)
+	if err != nil {
+		log.Fatalf("无法创建 migrator: %s", err)
+	}
+	if err := migrator.Up(); err != nil && err != migrate.ErrNoChange {
+		log.Fatalf("无法执行 migration: %s", err)
+	}
+
+	exitCode := m.Run()
+	os.Exit(exitCode)
+}
+
+func setupToxiproxy(ctx context.Context, networkName string) testcontainers.Container {
+	req := testcontainers.ContainerRequest{
+		Image:        "ghcr.io/shopify/toxiproxy:2.5.0",
+		ExposedPorts: []string{"8474/tcp", "8666/tcp", "8667/tcp"},
+		Networks:     []string{networkName},
+		NetworkAliases: map[string][]string{networkName: {"toxiproxy"}},
+		WaitingFor: wait.ForHTTP("/version").
+			WithPort("8474/tcp").
+			WithStartupTimeout(30 * time.Second),
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{ContainerRequest: req, Started: true})
+	if err != nil {
+		log.Fatalf("Toxiproxy 启动失败: %s", err)
+	}
+	return container
+}
+
+// setupPostgres 接收网络名称字符串，而不是 network 对象
+func setupPostgres(ctx context.Context, networkName string) testcontainers.Container { // <-- 关键变更
+	req := testcontainers.ContainerRequest{
+		Image:        "postgres:18-alpine3.22",
+		ExposedPorts: []string{"5432/tcp"},
+		Env:          map[string]string{"POSTGRES_USER": "test", "POSTGRES_PASSWORD": "password", "POSTGRES_DB": "testdb"},
+		WaitingFor:   wait.ForLog("database system is ready to accept connections").WithOccurrence(2),
+		Networks:     []string{networkName}, // <-- 使用网络名称
+		NetworkAliases: map[string][]string{networkName: {"postgres-db"}}, // <-- 使用网络名称
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{ContainerRequest: req, Started: true})
+	if err != nil { log.Fatalf("PG 启动失败: %s", err) }
+	return container
+}
+
+// setupRedis 接收网络名称字符串，而不是 network 对象
+func setupRedis(ctx context.Context, networkName string) testcontainers.Container { // <-- 关键变更
+	req := testcontainers.ContainerRequest{
+		Image:        "redis:7-alpine",
+		ExposedPorts: []string{"6379/tcp"},
+		WaitingFor:   wait.ForLog("Ready to accept connections"),
+		Networks:     []string{networkName}, // <-- 使用网络名称
+		NetworkAliases: map[string][]string{networkName: {"redis-cache"}}, // <-- 使用网络名称
+	}
+	container, err := testcontainers.GenericContainer(ctx, testcontainers.GenericContainerRequest{ContainerRequest: req, Started: true})
+	if err != nil { log.Fatalf("Redis 启动失败: %s", err) }
+	return container
+}
+
+// --- TestCreateAndRedirect_HappyPath 函数及其辅助函数 assertEventually 完全不变 ---
+
+func TestCreateAndRedirect_HappyPath(t *testing.T) {
+	ctx := context.Background()
+	originalURL := "https://www.google.com/very-long-path"
+
+	tx, err := dbPool.BeginTx(ctx, nil)
+	if err != nil { t.Fatal(err) }
+	defer tx.Rollback()
+	
+	txRepo := postgres.NewPgLinkRepository(tx)
+	txTestService := service.NewShortenerService(txRepo, redis_repo.NewRedisLinkCache(redisClient))
+	
+	createdLink, err := txTestService.CreateLink(ctx, originalURL)
+	if err != nil { t.Fatalf("CreateLink 不应返回错误: %v", err) }
+
+	redirectedLink, err := txTestService.Redirect(ctx, createdLink.ShortCode)
+	if err != nil { t.Fatalf("Redirect 不应返回错误: %v", err) }
+	if redirectedLink == nil || redirectedLink.OriginalURL != originalURL {
+		t.Fatalf("重定向的链接不正确")
+	}
+
+	assertEventually(t, func() bool {
+		count, err := redisClient.Get(ctx, fmt.Sprintf("link:visits:%s", createdLink.ShortCode)).Int64()
+		if err != nil { return false }
+		return count == 1
+	}, "访问计数应该在 Redis 中变为 1")
+
+	_, err = txTestService.Redirect(ctx, createdLink.ShortCode)
+	if err != nil { t.Fatalf("第二次 Redirect 不应返回错误: %v", err) }
+	
+	assertEventually(t, func() bool {
+		count, err := redisClient.Get(ctx, fmt.Sprintf("link:visits:%s", createdLink.ShortCode)).Int64()
+		if err != nil { return false }
+		return count == 2
+	}, "再次访问后，计数应该在 Redis 中变为 2")
+
+	redisClient.Del(ctx, fmt.Sprintf("link:visits:%s", createdLink.ShortCode))
+}
+
+func assertEventually(t *testing.T, condition func() bool, msgAndArgs ...interface{}) {
+	t.Helper()
+	const (
+		timeout  = 2 * time.Second
+		interval = 50 * time.Millisecond
+	)
+	timer := time.NewTimer(timeout)
+	defer timer.Stop()
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-timer.C:
+			t.Fatalf("Condition was not met within %v: %s", timeout, fmt.Sprint(msgAndArgs...))
+		case <-ticker.C:
+			if condition() {
+				return
+			}
+		}
+	}
+}
+
+func TestServiceIntegration(t *testing.T) {
+	// 使用 t.Cleanup 来确保在每个子测试运行后，代理的状态都被重置
+	t.Cleanup(func() {
+		// 遍历并重置所有代理
+		proxies, err := toxiproxyClient.Proxies()
+		if err != nil {
+			t.Fatalf("获取代理列表失败: %v", err)
+		}
+		for _, p := range proxies {
+			// 1. 重新启用代理 (如果被 Disable 了)
+			p.Enable()
+
+			// 2. 获取并删除该代理上的所有 Toxic
+			toxics, err := p.Toxics()
+			if err != nil {
+				t.Logf("获取 toxics 失败: %v", err)
+				continue
+			}
+			for _, toxic := range toxics {
+				p.RemoveToxic(toxic.Name)
+			}
+		}
+	})
+
+	// --- Happy Path 测试 ---
+	t.Run("HappyPath/CreateAndRedirect", func(t *testing.T) {
+		// 这个测试验证在没有故障注入时，基础功能是正常的
+		// ... (代码与第 6 讲的 TestCreateAndRedirect_HappyPath 完全相同)
+	})
+
+	// --- Chaos 测试 ---
+	t.Run("Chaos", func(t *testing.T) {
+		t.Run("当数据库延迟很高时 CreateLink 应该超时", func(t *testing.T) {
+			pgProxy, err := toxiproxyClient.Proxy("postgres")
+			if err != nil {
+				t.Fatalf("获取 PG 代理失败: %v", err)
+			}
+			
+			// 1. 注入故障：为 PG 代理增加 5 秒的延迟
+			pgProxy.AddToxic("latency_toxic", "latency", "", 1.0, toxiproxy.Attributes{
+				"latency": 5000,
+			})
+			defer pgProxy.RemoveToxic("latency_toxic") // 确保测试后清理
+
+			// 准备
+			linkRepo := postgres.NewPgLinkRepository(dbPool)
+			linkCache := redis_repo.NewRedisLinkCache(redisClient)
+			testService := service.NewShortenerService(linkRepo, linkCache)
+
+			// 2. 执行
+			_, err = testService.CreateLink(context.Background(), "https://example.com/timeout-test")
+			
+			// 3. 断言
+			if err == nil {
+				t.Fatal("期望 CreateLink 返回错误，但得到了 nil")
+			}
+			// 检查错误是否是 context 超时错误
+			if !errors.Is(err, context.DeadlineExceeded) {
+				t.Errorf("期望的错误类型是 context.DeadlineExceeded，但得到了 %T: %v", err, err)
+			}
+		})
+
+		t.Run("当 Redis 连接中断时 Redirect 应该优雅地失败", func(t *testing.T) {
+			redisProxy, err := toxiproxyClient.Proxy("redis")
+			if err != nil {
+				t.Fatalf("获取 Redis 代理失败: %v", err)
+			}
+
+			// 准备数据 (在一个没有故障的环境中)
+			ctx := context.Background()
+			linkRepo := postgres.NewPgLinkRepository(dbPool)
+			linkCache := redis_repo.NewRedisLinkCache(redisClient)
+			testService := service.NewShortenerService(linkRepo, linkCache)
+			link, _ := testService.CreateLink(ctx, "https://redis-down-test.com")
+
+			// 1. 注入故障：直接切断 Redis 代理
+			redisProxy.Disable()
+			defer redisProxy.Enable() // 确保测试后恢复
+
+			// 2. 执行业务逻辑
+			redirectedLink, err := testService.Redirect(ctx, link.ShortCode)
+
+			// 3. 断言
+			// 核心业务（从 PG 读取）应该成功
+			if err != nil {
+				t.Errorf("Redirect 的主逻辑不应该失败，但得到了: %v", err)
+			}
+			if redirectedLink == nil {
+				t.Fatal("Redirected link 不应该是 nil")
+			}
+
+			// 异步的 Redis 调用会失败，但我们无法直接断言。
+			// 这个测试保证了即使 Redis 挂了，核心的重定向功能依然可用，不会崩溃。
+			// 在真实项目中，我们会检查日志或监控指标来确认错误被正确处理。
+		})
+	})
+}

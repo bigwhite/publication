@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"log"
+	"time"
 
 	"github.com/bigwhite/shortlink/pkg/domain"
 	"github.com/bigwhite/shortlink/pkg/repository"
@@ -47,6 +48,11 @@ func (s *ShortenerService) CreateLink(ctx context.Context, originalURL string) (
 		return nil, errors.New("invalid URL")
 	}
 
+	// 为数据库操作创建一个带超时的 context
+	// 这是一个很好的实践，防止下游依赖的缓慢拖垮整个服务
+	dbCtx, cancel := context.WithTimeout(ctx, 3*time.Second)
+	defer cancel()
+
 	// 2. 尝试生成一个唯一的短码
 	const maxRetries = 5
 	for i := 0; i < maxRetries; i++ {
@@ -61,8 +67,8 @@ func (s *ShortenerService) CreateLink(ctx context.Context, originalURL string) (
 			ShortCode:   code,
 		}
 
-		// 3. 尝试保存到仓库
-		err = s.repo.Save(ctx, link)
+		// 3. 尝试保存到仓库，使用带超时的 context
+		err = s.repo.Save(dbCtx, link) // <-- 使用 dbCtx
 		if err == nil {
 			return link, nil // 保存成功，直接返回
 		}
