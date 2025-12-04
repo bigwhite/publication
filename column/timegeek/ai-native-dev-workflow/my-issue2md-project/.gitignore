@@ -1,0 +1,52 @@
+# Claude settings
+.claude/settings.local.json
+
+# IDE settings
+.vscode/
+.idea/
+
+# macOS
+*.DS_Store
+
+# Build artifacts
+/bin/
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+/my-issue2md-project
+
+# Test binary, built with `go test -c`
+*.test
+
+# Output of the go coverage tool
+*.out
+coverage.html
+
+# Dependency directories
+vendor/
+
+# Go workspace file
+go.work
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# Log files
+*.log
+
+# Temporary files
+*.tmp
+*.temp
+
+# OS generated files
+Thumbs.db
+.Spotlight-V100
+.Trashes
+
+# Configuration files with sensitive data
+config.json
+config.local.json

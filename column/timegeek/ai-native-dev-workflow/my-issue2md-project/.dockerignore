@@ -1,0 +1,64 @@
+# .dockerignore for issue2md project
+# Excludes unnecessary files from Docker build context
+
+# Git
+.git
+.gitignore
+.gitattributes
+
+# Documentation
+README.md
+CHANGELOG.md
+LICENSE
+*.md
+docs/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+logs/
+
+# Temporary files
+*.tmp
+*.temp
+
+# Test files
+*_test.go
+testdata/
+coverage.out
+coverage.html
+
+# Build artifacts (outside of container)
+*.exe
+issue2md
+issue2mdweb
+dist/
+build/
+
+# Docker files
+Dockerfile*
+docker-compose*.yml
+.dockerignore
+
+# CI/CD
+.github/
+.gitlab-ci.yml
+Jenkinsfile
+
+# Development tools
+Makefile
+.editorconfig
+.golangci.yml
+
+# Claude files
+.claude/
