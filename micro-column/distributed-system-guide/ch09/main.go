@@ -90,7 +90,6 @@ func (p *Proposer) Propose(value string) (string, bool) {
 	}
 	log.Printf("Proposer %s: Prepare phase successful. Received %d promises.\n", p.id, len(promises))
 
-	// *** 修正后的逻辑 ***
 	// 决定要 Accept 的值
 	highestAcceptedID := -1
 	valueToPropose := value // 默认用自己的值
