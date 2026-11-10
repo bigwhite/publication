@@ -10,6 +10,7 @@ import (
 
 	"example.com/go-mcp-enterprise/internal/mcpserver"
 	"example.com/go-mcp-enterprise/internal/orders"
+	"example.com/go-mcp-enterprise/internal/tickets"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
 )
 
@@ -25,16 +26,20 @@ func main() {
 	)
 	defer stop()
 
-	// 1. 创建 Repository
-	repo := orders.NewMemoryRepository()
+	orderRepo := orders.NewMemoryRepository()
+	orderService := orders.NewService(orderRepo)
 
-	// 2. 创建业务 Service
-	orderService := orders.NewService(repo)
+	ticketRepo := tickets.NewMemoryRepository()
+	ticketService := tickets.NewService(orderService, ticketRepo)
 
-	// 3. 创建 MCP Server，并注入业务 Service
-	server := mcpserver.New(orderService, logger)
+	// 创建 MCP Server，并注入业务 Service
+	server := mcpserver.New(
+		orderService,
+		ticketService,
+		logger,
+	)
 
-	// 4. 通过 stdio Transport 启动服务
+	// 通过 stdio Transport 启动服务
 	if err := server.Run(ctx, &mcp.StdioTransport{}); err != nil {
 		if !errors.Is(err, context.Canceled) {
 			logger.Error("MCP server stopped", "error", err)

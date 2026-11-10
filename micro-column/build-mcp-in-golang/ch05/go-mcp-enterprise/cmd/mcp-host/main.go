@@ -90,4 +90,37 @@ func main() {
 
 	fmt.Println("\nTool result:")
 	fmt.Println(string(output))
+
+	// 7. 调用 create_ticket Tool
+	result, err = session.CallTool(
+		ctx,
+		&mcp.CallToolParams{
+			Name: "create_ticket",
+			Arguments: map[string]any{
+				"order_id":        "ORD-1001",
+				"title":           "商品无法正常使用",
+				"description":     "收到商品后无法启动，已经尝试重新插拔电源。",
+				"priority":        "normal",
+				"idempotency_key": "host-demo-001",
+			},
+		},
+	)
+	if err != nil {
+		log.Fatalf("call create_ticket failed: %v", err)
+	}
+
+	if result.IsError {
+		log.Fatalf("create_ticket returned an error: %+v", result.Content)
+	}
+
+	data, err := json.MarshalIndent(
+		result.StructuredContent,
+		"",
+		"  ",
+	)
+	if err != nil {
+		log.Fatalf("marshal result failed: %v", err)
+	}
+
+	fmt.Println(string(data))
 }
