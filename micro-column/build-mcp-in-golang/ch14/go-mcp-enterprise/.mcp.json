@@ -1,0 +1,9 @@
+{
+  "mcpServers": {
+    "enterprise-orders": {
+      "type": "stdio",
+      "command": "./bin/mcp-context-stdio",
+      "args": []
+    }
+  }
+}
