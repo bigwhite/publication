@@ -1,0 +1,27 @@
+{
+  "engineering/architecture.md": {
+    "id": "3e922cb563d06f2b89f8497b84891ed17100a0c8785bbf1387325a5fc6b859f3",
+    "fingerprint": "79e0589a4986c90c425592a93b5a8423a7a4d8efcf4fcf9b096dcd64209b1de5",
+    "output": "3e922cb563d0-architecture.md"
+  },
+  "engineering/order.go": {
+    "id": "bd26a77e68f12d1d2dee3c040ac36864e380a8c56b5eab015e1165afa2cc4521",
+    "fingerprint": "6f97d00b8cb037ebbc3315377d5e09e2df44ed14c5ebfa8f4d9a1af41a4c05b7",
+    "output": "bd26a77e68f1-order.md"
+  },
+  "engineering/timeout.md": {
+    "id": "d7cb97c1504826aae9ddeee15ac87ee8020286ae2747845d5986ce211c4c1a07",
+    "fingerprint": "0dc71e2809945ad53675d99c0491e1c09d683e3d2f72c1e2f5809bb3bc01bd13",
+    "output": "d7cb97c15048-timeout.md"
+  },
+  "operations/deployment.md": {
+    "id": "8ff830f9858167dcf6cce268b33ea10cf15e09991098562332cf1fb598dade6f",
+    "fingerprint": "b269d576df5fd84b1980f4d22df6b173d9a8661f9982e3c7ccfacbfc1dd68865",
+    "output": "8ff830f98581-deployment.md"
+  },
+  "operations/incident.md": {
+    "id": "16d113b48b32c93ab7c5590eec43acd4418f2043b6e452a0736683963000eac1",
+    "fingerprint": "81507ce12fb0b13d6bb569bb7ce71c457518f56161f7ae03692e958a00ece886",
+    "output": "16d113b48b32-incident.md"
+  }
+}
